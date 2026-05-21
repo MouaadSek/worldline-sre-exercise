@@ -1,0 +1,47 @@
+---
+- name: Create MySQL Database and User
+  hosts: dbservers
+  become: true
+  vars:
+    mysql_root_password: "Worldline2026!"
+    db_name: "worldline_db"
+    db_user: "wl_user"
+    db_user_password: "WlUser2026!"
+
+  tasks:
+    - name: Install PyMySQL (required for Ansible MySQL modules)
+      ansible.builtin.pip:
+        name: PyMySQL
+        state: present
+
+    - name: Create database
+      community.mysql.mysql_db:
+        name: "{{ db_name }}"
+        state: present
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_unix_socket: /var/lib/mysql/mysql.sock
+
+    - name: Create database user with privileges
+      community.mysql.mysql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_user_password }}"
+        priv: "{{ db_name }}.*:ALL"
+        host: localhost
+        state: present
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_unix_socket: /var/lib/mysql/mysql.sock
+
+    - name: Verify database exists
+      community.mysql.mysql_info:
+        login_user: "{{ db_user }}"
+        login_password: "{{ db_user_password }}"
+        login_unix_socket: /var/lib/mysql/mysql.sock
+        filter:
+          - databases
+      register: mysql_info
+
+    - name: Display database info
+      ansible.builtin.debug:
+        msg: "Database '{{ db_name }}' successfully created and accessible by user '{{ db_user }}'"

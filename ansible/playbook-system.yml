@@ -1,0 +1,83 @@
+---
+- name: System Configuration and MySQL Setup
+  hosts: dbservers
+  become: true
+  vars:
+    mysql_log_partition: /dev/sda1
+    mysql_log_dir: /var/log/mysql
+
+  tasks:
+    # ---- System Configuration ----
+    - name: Set vm.swappiness to 1
+      ansible.posix.sysctl:
+        name: vm.swappiness
+        value: '1'
+        state: present
+        sysctl_file: /etc/sysctl.d/99-swappiness.conf
+        reload: true
+
+    - name: Create MySQL log directory
+      ansible.builtin.file:
+        path: "{{ mysql_log_dir }}"
+        state: directory
+        owner: mysql
+        group: mysql
+        mode: '0755'
+
+    - name: Format log partition (XFS)
+      community.general.filesystem:
+        fstype: xfs
+        dev: "{{ mysql_log_partition }}"
+        force: false
+
+    - name: Mount log partition
+      ansible.posix.mount:
+        path: "{{ mysql_log_dir }}"
+        src: "{{ mysql_log_partition }}"
+        fstype: xfs
+        state: mounted
+
+    - name: Ensure log directory ownership after mount
+      ansible.builtin.file:
+        path: "{{ mysql_log_dir }}"
+        state: directory
+        owner: mysql
+        group: mysql
+        mode: '0755'
+
+    # ---- MySQL Installation ----
+    - name: Add MySQL 8.4 Community repository
+      ansible.builtin.dnf:
+        name: https://dev.mysql.com/get/mysql84-community-release-el10-1.noarch.rpm
+        state: present
+        disable_gpg_check: true
+
+    - name: Install MySQL Community Server
+      ansible.builtin.dnf:
+        name:
+          - mysql-community-server
+          - mysql-community-client
+        state: present
+        disable_gpg_check: true
+
+    # ---- MySQL Configuration ----
+    - name: Deploy MySQL configuration
+      ansible.builtin.copy:
+        src: files/my.cnf
+        dest: /etc/my.cnf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart MySQL
+
+    - name: Start and enable MySQL
+      ansible.builtin.systemd:
+        name: mysqld
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Restart MySQL
+      ansible.builtin.systemd:
+        name: mysqld
+        state: restarted
