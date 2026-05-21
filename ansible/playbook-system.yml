@@ -5,9 +5,7 @@
   vars:
     mysql_log_partition: /dev/sda1
     mysql_log_dir: /var/log/mysql
-
   tasks:
-    # ---- System Configuration ----
     - name: Set vm.swappiness to 1
       ansible.posix.sysctl:
         name: vm.swappiness
@@ -15,7 +13,6 @@
         state: present
         sysctl_file: /etc/sysctl.d/99-swappiness.conf
         reload: true
-
     - name: Create MySQL log directory
       ansible.builtin.file:
         path: "{{ mysql_log_dir }}"
@@ -23,20 +20,17 @@
         owner: mysql
         group: mysql
         mode: '0755'
-
     - name: Format log partition (XFS)
       community.general.filesystem:
         fstype: xfs
         dev: "{{ mysql_log_partition }}"
         force: false
-
     - name: Mount log partition
       ansible.posix.mount:
         path: "{{ mysql_log_dir }}"
         src: "{{ mysql_log_partition }}"
         fstype: xfs
         state: mounted
-
     - name: Ensure log directory ownership after mount
       ansible.builtin.file:
         path: "{{ mysql_log_dir }}"
@@ -44,23 +38,33 @@
         owner: mysql
         group: mysql
         mode: '0755'
-
-    # ---- MySQL Installation ----
-    - name: Add MySQL 8.4 Community repository
-      ansible.builtin.dnf:
-        name: https://dev.mysql.com/get/mysql84-community-release-el10-1.noarch.rpm
-        state: present
-        disable_gpg_check: true
-
-    - name: Install MySQL Community Server
+    - name: Check if MySQL repo is installed
+      ansible.builtin.command:
+        cmd: rpm -q mysql84-community-release
+      register: mysql_repo_check
+      changed_when: false
+      failed_when: false
+    - name: Download MySQL repo RPM
+      ansible.builtin.get_url:
+        url: https://dev.mysql.com/get/mysql84-community-release-el10-1.noarch.rpm
+        dest: /tmp/mysql-repo.rpm
+      when: mysql_repo_check.rc != 0
+    - name: Install MySQL repo RPM
+      ansible.builtin.command:
+        cmd: rpm -ivh --nosignature /tmp/mysql-repo.rpm
+      when: mysql_repo_check.rc != 0
+    - name: Disable GPG check for MySQL repos
+      ansible.builtin.command:
+        cmd: sed -i 's/gpgcheck=1/gpgcheck=0/g' /etc/yum.repos.d/mysql-community*.repo
+      when: mysql_repo_check.rc != 0
+      changed_when: true
+    - name: Install MySQL packages
       ansible.builtin.dnf:
         name:
           - mysql-community-server
           - mysql-community-client
         state: present
         disable_gpg_check: true
-
-    # ---- MySQL Configuration ----
     - name: Deploy MySQL configuration
       ansible.builtin.copy:
         src: files/my.cnf
@@ -69,13 +73,11 @@
         group: root
         mode: '0644'
       notify: Restart MySQL
-
     - name: Start and enable MySQL
       ansible.builtin.systemd:
         name: mysqld
         state: started
         enabled: true
-
   handlers:
     - name: Restart MySQL
       ansible.builtin.systemd:
