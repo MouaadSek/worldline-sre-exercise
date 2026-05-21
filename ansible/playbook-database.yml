@@ -7,13 +7,11 @@
     db_name: "worldline_db"
     db_user: "wl_user"
     db_user_password: "WlUser2026!"
-
   tasks:
-    - name: Install PyMySQL (required for Ansible MySQL modules)
+    - name: Install PyMySQL
       ansible.builtin.pip:
         name: PyMySQL
         state: present
-
     - name: Create database
       community.mysql.mysql_db:
         name: "{{ db_name }}"
@@ -21,27 +19,24 @@
         login_user: root
         login_password: "{{ mysql_root_password }}"
         login_unix_socket: /var/lib/mysql/mysql.sock
-
-    - name: Create database user with privileges
-      community.mysql.mysql_user:
-        name: "{{ db_user }}"
-        password: "{{ db_user_password }}"
-        priv: "{{ db_name }}.*:ALL"
-        host: localhost
-        state: present
-        login_user: root
-        login_password: "{{ mysql_root_password }}"
-        login_unix_socket: /var/lib/mysql/mysql.sock
-
-    - name: Verify database exists
-      community.mysql.mysql_info:
-        login_user: "{{ db_user }}"
-        login_password: "{{ db_user_password }}"
-        login_unix_socket: /var/lib/mysql/mysql.sock
-        filter:
-          - databases
-      register: mysql_info
-
-    - name: Display database info
+    - name: Check if user exists
+      ansible.builtin.command:
+        cmd: mysql -u root -p'{{ mysql_root_password }}' -N -e "SELECT COUNT(*) FROM mysql.user WHERE User='{{ db_user }}';"
+      register: user_exists
+      changed_when: false
+    - name: Create database user
+      ansible.builtin.command:
+        cmd: mysql -u root -p'{{ mysql_root_password }}' -e "CREATE USER '{{ db_user }}'@'localhost' IDENTIFIED BY '{{ db_user_password }}';"
+      when: user_exists.stdout | trim == "0"
+    - name: Grant privileges
+      ansible.builtin.command:
+        cmd: mysql -u root -p'{{ mysql_root_password }}' -e "GRANT ALL PRIVILEGES ON {{ db_name }}.* TO '{{ db_user }}'@'localhost'; FLUSH PRIVILEGES;"
+      changed_when: true
+    - name: Verify user can connect
+      ansible.builtin.command:
+        cmd: mysql -u {{ db_user }} -p'{{ db_user_password }}' -e "SHOW DATABASES;"
+      register: db_check
+      changed_when: false
+    - name: Show result
       ansible.builtin.debug:
-        msg: "Database '{{ db_name }}' successfully created and accessible by user '{{ db_user }}'"
+        msg: "{{ db_check.stdout_lines }}"
