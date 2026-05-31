@@ -3,7 +3,6 @@
   hosts: dbservers
   become: true
   vars:
-    mysql_log_partition: /dev/sda1
     mysql_log_dir: /var/log/mysql
   tasks:
     - name: Set vm.swappiness to 1
