@@ -16,7 +16,8 @@ Déployer une mini-plateforme avec un service MySQL 8.4.x Community sur Rocky Li
 ## Structure du projet
 
 - README.md
-- ansible/inventory/hosts.ini
+- ansible/inventory/local/hosts.ini (inventaire VM locale)
+- ansible/inventory/azure/hosts.ini (inventaire VM Azure)
 - ansible/files/my.cnf
 - ansible/playbook-system.yml (Config système + MySQL)
 - ansible/playbook-database.yml (Création BDD + utilisateur)
@@ -25,14 +26,14 @@ Déployer une mini-plateforme avec un service MySQL 8.4.x Community sur Rocky Li
 ## Utilisation
 
 ### Local (VMware)
-ansible-playbook -i ansible/inventory/hosts.ini ansible/playbook-system.yml
-ansible-playbook -i ansible/inventory/hosts.ini ansible/playbook-database.yml
+ansible-playbook -i ansible/inventory/local/hosts.ini ansible/playbook-system.yml
+ansible-playbook -i ansible/inventory/local/hosts.ini ansible/playbook-database.yml
 
 ### Azure (Terraform + Ansible)
 cd terraform && terraform init && terraform apply
 ssh msekkouri@PUBLIC_IP
-ansible-playbook -i ansible/inventory/hosts.ini ansible/playbook-system.yml
-ansible-playbook -i ansible/inventory/hosts.ini ansible/playbook-database.yml
+ansible-playbook -i ansible/inventory/azure/hosts.ini ansible/playbook-system.yml
+ansible-playbook -i ansible/inventory/azure/hosts.ini ansible/playbook-database.yml
 
 ## Auteur
 
